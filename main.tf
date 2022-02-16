@@ -1,6 +1,7 @@
 data "external" "myipaddr" {
   program = ["bash", "-c", "curl -s 'https://api.ipify.org?format=json'"]
 }
+
 resource "aws_vpc" "main" {
   cidr_block       = var.cidr
   instance_tenancy = "default"
@@ -9,6 +10,7 @@ resource "aws_vpc" "main" {
     Name = "my_vpc"
   }
 }
+
 resource "aws_subnet" "main1" {
   vpc_id     = aws_vpc.main.id
   cidr_block = var.subnet_cidr
@@ -27,6 +29,7 @@ resource "aws_subnet" "main2" {
     Name = "private"
   }
 }
+
 resource "aws_internet_gateway" "main3" {
   vpc_id = aws_vpc.main.id
 
@@ -45,10 +48,12 @@ resource "aws_route_table" "main4" {
     gateway_id = aws_internet_gateway.main3.id
   }
 }
+
 resource "aws_route_table_association" "main5" {
   subnet_id      = aws_subnet.main1.id
   route_table_id = aws_route_table.main4.id
 }
+
 resource "aws_security_group" "main6" {
   name        = "public"
   description = "public_security_group"
@@ -108,6 +113,7 @@ resource "aws_security_group" "main7" {
     Name = "private"
   }
 }
+
 resource "aws_security_group" "main8" {
   name        = "nat"
   description = "nat_security_group"
@@ -158,3 +164,46 @@ resource "aws_instance" "public" {
   }
 }
  
+resource "aws_instance" "nat" {
+  ami           = "ami-0032ea5ae08aa27a2"
+  instance_type = "t2.micro"
+  associate_public_ip_address = "true"
+  availability_zone = "us-west-2b"
+  key_name = "terra"
+  security_groups = [aws_security_group.main8.id]
+  subnet_id = aws_subnet.main1.id
+  source_dest_check = "false"
+  tags = {
+    Name = "nat"
+  }
+}
+
+resource "aws_route_table" "main9" {
+  vpc_id = aws_vpc.main.id
+  tags = {
+    Name = "private"
+  }
+  route {
+    cidr_block = "0.0.0.0/0"
+    instance_id = aws_instance.nat.id
+  }
+}
+
+resource "aws_route_table_association" "main10" {
+  subnet_id      = aws_subnet.main2.id
+  route_table_id = aws_route_table.main9.id
+}
+
+resource "aws_instance" "private" {
+  ami           = "ami-0341aeea105412b57"
+  instance_type = "t2.micro"
+  associate_public_ip_address = "false"
+  availability_zone = "us-west-2b"
+  key_name = "terra"
+  security_groups = [aws_security_group.main7.id]
+  subnet_id = aws_subnet.main2.id
+
+  tags = {
+    Name = "private"
+  }
+}
